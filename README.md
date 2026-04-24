@@ -69,3 +69,5 @@ pnpm run test:e2e
 -   **Consistency**: Adopts an eventual consistency model with defensive local validation against the "Source of Truth" (HCM).
 -   **Resilience**: Designed with modular services to easily implement circuit breakers or retry logic in a production environment.
 -   **Security**: Implements input validation via DTOs and NestJS ValidationPipes.
+
+This implementation prioritizes simplicity and clarity, while outlining how a production-ready system would handle distributed consistency
