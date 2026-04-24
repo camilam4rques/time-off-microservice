@@ -76,189 +76,174 @@ The main challenge is maintaining **balance consistency across distributed syste
 
 ## 7. API Design
 
-### 7.1 Create Request  
+The API follows a RESTful approach using NestJS controllers.
+
+### 7.1 Create Time-Off Request  
 **POST /time-off**
 
-- Validates against local balance  
-- Calls HCM for validation (defensive check)  
-- Creates request as `PENDING`  
+Creates a new time-off request.
+
+Flow:
+- Validates input data
+- Checks local balance
+- Stores request as `PENDING`
+
+⚠️ Note: Current implementation relies primarily on local validation.
 
 ---
 
-### 7.2 Approve Request  
-**POST /time-off/:id/approve**
+### 7.2 Approve Time-Off Request  
+**PATCH /time-off/:id/approve**
 
-- Re-validates balance with HCM  
-- Deducts balance if valid  
-- Marks as `APPROVED`  
+- Updates request status to `APPROVED`
+- Deducts balance locally
+
+⚠️ Limitation:
+- No real-time validation with HCM at approval time
 
 ---
 
-### 7.3 Reject Request  
-**POST /time-off/:id/reject**
+### 7.3 Reject Time-Off Request  
+**PATCH /time-off/:id/reject**
 
-- Marks as `REJECTED`  
+- Updates request status to `REJECTED`
 
 ---
 
 ### 7.4 Get Balance  
 **GET /balances/:employeeId**
 
-- Returns cached balance  
+- Returns stored balance from database
 
 ---
 
 ## 8. HCM Integration Strategy
 
-### 8.1 Real-time API
+### Current Implementation
 
-Used for:
-- Validating requests  
-- Updating balances  
+- A mock or simplified HCM interaction is used
+- Balance validation is mostly handled locally
 
-### 8.2 Batch API
+### Limitations
 
-Used for:
-- Periodic reconciliation  
-- Overwriting local cache  
+- No external API client abstraction
+- No retry or failure handling strategy
 
 ---
 
 ## 9. Consistency Strategy
 
-This system uses an **eventual consistency model**:
+The system currently follows a **local consistency model**:
 
-- Local cache provides fast responses  
-- HCM is always treated as the final authority  
-- Reconciliation jobs correct inconsistencies  
+- Balances are stored and validated locally
+- No guaranteed synchronization with external systems
+
+⚠️ This differs from ideal eventual consistency with HCM
 
 ---
 
-## 10. Key Challenges & Solutions
+## 10. Key Challenges & Current Handling
 
 ### 10.1 Stale Balance Problem
 
-**Challenge:**  
-Local balance may be outdated  
+**Current State:**
+- Balance is assumed to be accurate locally
 
-**Solution:**  
-- Always validate with HCM before approval  
-- Use batch sync to reconcile  
+**Gap:**
+- No reconciliation with external system
 
 ---
 
 ### 10.2 Concurrent Requests
 
-**Challenge:**  
-Multiple requests may exceed balance  
+**Current State:**
+- No explicit concurrency control
 
-**Solution:**  
-- Re-check balance at approval time  
-- Use database transactions (if supported)  
+**Risk:**
+- Multiple approvals may exceed balance
 
 ---
 
-### 10.3 HCM Failures
+### 10.3 External System Failures
 
-**Challenge:**  
-HCM may be unavailable or inconsistent  
-
-**Solution:**  
-- Fail safely (reject or retry)  
-- Log errors  
-- Consider retry strategy (future improvement)  
+**Current State:**
+- Not implemented
 
 ---
 
 ### 10.4 External Updates
 
-**Challenge:**  
-Balance changes outside the system (e.g., anniversary bonus)  
-
-**Solution:**  
-- Batch sync endpoint updates local cache  
-- Use `lastSyncedAt` to track freshness  
+**Current State:**
+- Not handled (no batch sync)
 
 ---
 
 ## 11. Security Considerations
 
-- Validate all input data  
-- Prevent negative balances  
-- Avoid trusting client-side validation  
-- Authentication and authorization can be added in future iterations  
+Implemented:
+- Basic validation via DTOs
+
+Missing:
+- Authentication / authorization
+- Rate limiting
+- Input sanitization hardening
 
 ---
 
 ## 12. Testing Strategy
 
-### 12.1 Unit Tests
+### Implemented
 
-- Business logic validation  
-- Edge cases (negative balance, invalid requests)  
+- Basic unit tests (if applicable in repo)
 
----
+### Gaps
 
-### 12.2 Integration Tests
-
-- API + database interaction  
-- HCM mock interaction  
+- No HCM mock integration layer
+- No concurrency tests
+- Limited edge case coverage
 
 ---
 
-### 12.3 Mock HCM Server
+## 13. Trade-offs & Decisions
 
-Simulates:
-- Balance validation  
-- Errors  
-- External updates  
+### Chosen Approach
 
----
+- Simpler architecture prioritizing clarity and delivery speed
+- Local validation instead of distributed consistency
 
-### 12.4 Key Test Scenarios
+### Trade-offs
 
-- Request within balance → success  
-- Request exceeding balance → failure  
-- Concurrent requests → consistency maintained  
-- HCM returns error → handled gracefully  
-- Batch sync updates balance correctly  
-
----
-
-## 13. Trade-offs & Alternatives
-
-### 13.1 Fully Synchronous Validation (Chosen)
-
-- ✅ Strong consistency at approval  
-- ❌ Slower response time  
-
----
-
-### 13.2 Optimistic Updates (Not Chosen)
-
-- ✅ Fast user experience  
-- ❌ Risk of inconsistency  
-
----
-
-### 13.3 Event-driven Architecture (Future)
-
-- ✅ Scalable and decoupled  
-- ❌ More complex  
+- ✅ Easier to implement and test
+- ❌ Not production-ready for distributed environments
 
 ---
 
 ## 14. Future Improvements
 
-- Add message queue (Kafka/RabbitMQ)  
-- Implement retry mechanisms  
-- Add authentication & authorization  
-- Support accrual policies  
-- Introduce caching layer (Redis)  
-- Observability (logs, metrics)  
+- Introduce HCM client layer (separation of concerns)
+- Add real-time validation before approval
+- Implement batch synchronization endpoint
+- Add transactional safety (locks or DB transactions)
+- Improve test coverage (integration + edge cases)
+- Add retry and fallback mechanisms
 
 ---
 
+## 15. Conclusion
+
+This implementation demonstrates a clear and functional baseline for a time-off service:
+
+- Clean API design with NestJS
+- Proper domain separation (requests and balances)
+- Basic lifecycle management
+
+However, it currently lacks:
+
+- External system integration robustness
+- Strong consistency guarantees
+- Defensive validation strategies
+
+These improvements would be necessary for a production-grade distributed system.
 ## 15. Conclusion
 
 This solution balances **performance, consistency, and resilience** by:
@@ -267,3 +252,6 @@ This solution balances **performance, consistency, and resilience** by:
 - Deferring final validation to HCM  
 - Implementing reconciliation mechanisms  
 - Designing defensively against failures  
+
+
+This implementation prioritizes simplicity and clarity, while outlining how a production-ready system would handle distributed consistency
